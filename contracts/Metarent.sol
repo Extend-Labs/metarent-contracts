@@ -2,16 +2,18 @@
 pragma solidity ^0.8.10;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+
 import "./lib/MetarentHelper.sol";
 
-contract Metarent is ERC721 {
-    constructor() public {}
-
+contract Metarent is ERC721, MetarentHelper {
     address private admin;
     uint256 private feePermille; // fee in permille ‰, like 25‰, 0.025
+    EnumerableMap.UintToAddressMap private myMap;
 
     constructor(address _admin) {
-        checkZeroAddr(_resolver);
+        checkZeroAddr(_admin);
         admin = _admin;
     }
 
@@ -39,7 +41,10 @@ contract Metarent is ERC721 {
         Renting renting;
     }
 
-    mapping(bytes32 => LendingRenting) private lendingRenting;
+    /**
+     * Mapping for lender and renter to their LendingRenting
+     */
+    mapping(address => LendingRenting) private lendingRenting;
 
     /**
      * Rent NFT

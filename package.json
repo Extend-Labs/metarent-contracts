@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "license": "MIT",
   "devDependencies": {
-    "@openzeppelin/contracts": "^4.3.3"
+    "@openzeppelin/contracts": "^4.4.0"
   },
   "dependencies": {
     "@openzeppelin/test-environment": "^0.1.9",
@@ -11,6 +11,5 @@
     "@truffle/hdwallet-provider": "^1.6.0",
     "web3": "^1.6.1"
   },
-  "scripts": {
-  }
+  "scripts": {}
 }
