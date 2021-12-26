@@ -6,12 +6,14 @@ import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-
 import "./lib/MetarentHelper.sol";
 
 contract Metarent is ERC721Holder, MetarentHelper {
     address private admin;
     uint256 private feePermille; // fee in permille ‰, like 25‰, 0.025
+
+    mapping(address => UserLending) private userLendings;
+    mapping(address => UserRenting) private userRentings;
 
     constructor(address _admin) {
         checkZeroAddr(_admin);
@@ -24,59 +26,168 @@ contract Metarent is ERC721Holder, MetarentHelper {
         _;
     }
 
+    /**
+     * Single rentable NFT info
+     */
     struct Lending {
-        address payable lenderAddress;
+        address lenderAddress;
         uint256 nftToken;
         uint256 nftTokenId;
         uint8 maxRentDuration;
+        bool rentable;
         bytes4 dailyRentPrice;
         bytes4 nftPrice;
     }
 
-    struct Renting {
-        address payable renterAddress;
-        uint8 rentDuration;
-        uint32 rentedAt;
-    }
-
-    struct LendingRenting {
-        Lending lending;
-        Renting renting;
+    /**
+     * All user's rentable NFT infos
+     */
+    struct UserLending {
+        address lender;
+        Lending[] lendings;
+        bool exists; // flag to check key exists or not
     }
 
     /**
-     * Mapping for lender and renter to their LendingRenting
+     * Single rented NFT info
      */
-    mapping(address => LendingRenting) private lendingRenting;
+    struct Renting {
+        address renter;
+        uint8 rentDuration;
+        uint256 rentedAt;
+    }
 
-    // EnumerableMap.UintToAddressMap private lendingRenting;
+    /**
+     * All user's rented NFTs
+     */
+    struct UserRenting {
+        address renter;
+        Renting[] rentings;
+        bool exists;
+    }
 
-    // Get lender's NFT tokenIds
-    // function getTokenIds(address _owner)
-    //     public
-    //     view
-    //     returns (uint256[] memory)
-    // {
-    //     uint256[] memory _tokensOfOwner = new uint256[](
-    //         ERC721.balanceOf(_owner)
-    //     );
-    //     uint256 i;
+    /**
+     * NFT Onwer mark the NFT as rentable
+     */
+    function setLending(
+        uint256 nftToken,
+        uint256 nftTokenId,
+        uint8 maxRentDuration,
+        bytes4 dailyRentPrice,
+        bytes4 nftPrice
+    ) public {
+        address user = msg.sender;
 
-    //     for (i = 0; i < ERC721.balanceOf(_owner); i++) {
-    //         _tokensOfOwner[i] = ERC721Enumerable.tokenOfOwnerByIndex(_owner, i);
-    //     }
-    //     return (_tokensOfOwner);
-    // }
+        // Init lending info
+        Lending memory lending = Lending({
+            lenderAddress: msg.sender,
+            nftToken: nftToken,
+            nftTokenId: nftTokenId,
+            maxRentDuration: maxRentDuration,
+            dailyRentPrice: dailyRentPrice,
+            nftPrice: nftPrice,
+            rentable: true
+        });
+
+        // Add lending to user lending list
+        UserLending memory userLending;
+        if (userLendings[user].exists) {
+            userLending = userLendings[user];
+            userLendings[user].lendings.push(lending);
+        } else {
+            Lending[] memory emptydLendings;
+            userLendings[user] = UserLending({
+                lender: user,
+                lendings: emptydLendings,
+                exists: true
+            });
+        }
+        // Need remove duplicates
+    }
+
+    /**
+     * Remove lending from user lending list
+     */
+    function removeLending(uint256 nftToken, uint256 nftTokenId) public pure {
+        require(false, "NOT Implement");
+    }
+
+    /**
+     * Get user's rentable NFTs
+     */
+    function getLending(address user)
+        public
+        view
+        returns (Lending[] memory lendings)
+    {
+        if (userLendings[user].exists) {
+            return userLendings[user].lendings;
+        }
+        return lendings;
+    }
 
     /**
      * Rent NFT
      */
-    function rent() public payable {}
+    function rent(
+        address user,
+        uint256 nftToken,
+        uint256 nftTokenId,
+        uint8 rentDuration
+    ) public payable {
+        bool success = false;
+        UserLending storage userLending;
+        if (userLendings[user].exists) {
+            userLending = userLendings[user];
+            Lending[] storage lendings = userLending.lendings;
+            Lending storage lending;
+            for (uint256 i = 0; i <= lendings.length; i++) {
+                lending = lendings[i];
+                if (
+                    lending.nftToken == nftToken &&
+                    lending.nftTokenId == nftTokenId
+                ) {
+                    // Do rent
+                    lending.rentable = false;
+                    Renting memory renting;
+                    renting = Renting({
+                        renter: msg.sender,
+                        rentDuration: rentDuration,
+                        rentedAt: block.timestamp
+                    });
+
+                    UserRenting memory userRenting;
+                    if (userRentings[user].exists) {
+                        userRenting = userRentings[user];
+                        userRentings[user].rentings.push(renting);
+                    } else {
+                        Renting[] memory emptydRenting;
+                        userRentings[user] = UserRenting({
+                            renter: user,
+                            rentings: emptydRenting,
+                            exists: true
+                        });
+                    }
+                    success = true;
+                }
+            }
+        }
+        require(success, "Failed on rent");
+    }
 
     /**
-     * Allow NFT to be lent
+     * Get rented NFTs
      */
-    function lend() public {}
+    function getRenting(address user)
+        public
+        view
+        returns (Renting[] memory rentings)
+    {
+        if (userRentings[user].exists) {
+            return userRentings[user].rentings;
+        }
+        return rentings;
+    }
 
     /**
      * Change the feePermille
