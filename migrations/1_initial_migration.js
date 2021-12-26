@@ -1,7 +1,5 @@
-// const Migrations = artifacts.require("Migrations");
-const Metarent = artifacts.require("Metarent");
+const Migrations = artifacts.require("Migrations");
 
 module.exports = function (deployer) {
-  // deployer.deploy(Migrations);
-  deployer.deploy(Metarent);
+  deployer.deploy(Migrations);
 };
