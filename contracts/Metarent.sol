@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.11;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
@@ -11,9 +11,6 @@ import "./lib/MetarentHelper.sol";
 contract Metarent is ERC721Holder, MetarentHelper {
     address private admin;
     uint256 private feePermille; // fee in permille ‰, like 25‰, 0.025
-
-    mapping(address => UserLending) private userLendings;
-    mapping(address => UserRenting) private userRentings;
 
     constructor(address _admin) {
         checkZeroAddr(_admin);
@@ -27,10 +24,10 @@ contract Metarent is ERC721Holder, MetarentHelper {
     }
 
     /**
-     * Single rentable NFT info
+     * Lendable NFT info
      */
     struct Lending {
-        address lenderAddress;
+        address lender;
         uint256 nftToken;
         uint256 nftTokenId;
         uint8 maxRentDuration;
@@ -38,33 +35,23 @@ contract Metarent is ERC721Holder, MetarentHelper {
         bytes4 dailyRentPrice;
         bytes4 nftPrice;
     }
+    Lending[] lendings;
+    uint256 userLendingsSize;
 
     /**
-     * All user's rentable NFT infos
-     */
-    struct UserLending {
-        address lender;
-        Lending[] lendings;
-        bool exists; // flag to check key exists or not
-    }
-
-    /**
-     * Single rented NFT info
+     * Rented NFT info
      */
     struct Renting {
         address renter;
+        uint256 nftToken;
+        uint256 nftTokenId;
+        bytes4 dailyRentPrice;
+        bytes4 nftPrice;
         uint8 rentDuration;
         uint256 rentedAt;
     }
-
-    /**
-     * All user's rented NFTs
-     */
-    struct UserRenting {
-        address renter;
-        Renting[] rentings;
-        bool exists;
-    }
+    Renting[] rentings;
+    uint256 userRentingsSize;
 
     /**
      * NFT Onwer mark the NFT as rentable
@@ -80,7 +67,7 @@ contract Metarent is ERC721Holder, MetarentHelper {
 
         // Init lending info
         Lending memory lending = Lending({
-            lenderAddress: msg.sender,
+            lender: msg.sender,
             nftToken: nftToken,
             nftTokenId: nftTokenId,
             maxRentDuration: maxRentDuration,
@@ -90,19 +77,14 @@ contract Metarent is ERC721Holder, MetarentHelper {
         });
 
         // Add lending to user lending list
-        UserLending memory userLending;
-        if (userLendings[user].exists) {
-            userLending = userLendings[user];
-            userLendings[user].lendings.push(lending);
-        } else {
-            Lending[] memory emptydLendings;
-            userLendings[user] = UserLending({
-                lender: user,
-                lendings: emptydLendings,
-                exists: true
-            });
+        for (uint256 i = 0; i < lendings.length; i++) {
+            Lending storage _lend = lendings[i];
+            if (_lend.nftToken == nftToken && _lend.nftTokenId == nftTokenId) {
+                require(false, "Already lended");
+            }
         }
-        // Need remove duplicates
+        userLendingsSize++;
+        lendings[userLendingsSize] = lending;
     }
 
     /**
@@ -115,15 +97,14 @@ contract Metarent is ERC721Holder, MetarentHelper {
     /**
      * Get user's rentable NFTs
      */
-    function getLending(address user)
-        public
-        view
-        returns (Lending[] memory lendings)
-    {
-        if (userLendings[user].exists) {
-            return userLendings[user].lendings;
+    function getLending(address user) public view returns (Lending[] memory) {
+        Lending[] storage _lendings;
+        for (uint256 i = 0; i < lendings.length; i++) {
+            if (lendings[i].lender == user) {
+                _lendings.push(lendings[i]);
+            }
         }
-        return lendings;
+        return _lendings;
     }
 
     /**
@@ -136,57 +117,49 @@ contract Metarent is ERC721Holder, MetarentHelper {
         uint8 rentDuration
     ) public payable {
         bool success = false;
-        UserLending storage userLending;
-        if (userLendings[user].exists) {
-            userLending = userLendings[user];
-            Lending[] storage lendings = userLending.lendings;
-            Lending storage lending;
-            for (uint256 i = 0; i <= lendings.length; i++) {
-                lending = lendings[i];
-                if (
-                    lending.nftToken == nftToken &&
-                    lending.nftTokenId == nftTokenId
-                ) {
-                    // Do rent
-                    lending.rentable = false;
-                    Renting memory renting;
-                    renting = Renting({
-                        renter: msg.sender,
-                        rentDuration: rentDuration,
-                        rentedAt: block.timestamp
-                    });
 
-                    UserRenting memory userRenting;
-                    if (userRentings[user].exists) {
-                        userRenting = userRentings[user];
-                        userRentings[user].rentings.push(renting);
-                    } else {
-                        Renting[] memory emptydRenting;
-                        userRentings[user] = UserRenting({
-                            renter: user,
-                            rentings: emptydRenting,
-                            exists: true
-                        });
-                    }
-                    success = true;
-                }
+        // Find the lending
+        Lending memory _lending;
+        bool found = false;
+        for (uint256 i = 0; i < lendings.length; i++) {
+            Lending storage _lend = lendings[i];
+            if (_lend.nftToken == nftToken && _lend.nftTokenId == nftTokenId) {
+                _lending = _lend;
             }
         }
-        require(success, "Failed on rent");
+        require(found, "Lending not available");
+
+        Renting memory _rent = Renting({
+            renter: msg.sender,
+            nftToken: nftToken,
+            nftTokenId: nftTokenId,
+            dailyRentPrice: _lending.dailyRentPrice,
+            nftPrice: _lending.nftPrice,
+            rentDuration: rentDuration,
+            rentedAt: block.timestamp
+        });
+        for (uint256 i = 0; i < rentings.length; i++) {
+            Renting memory _r = rentings[i];
+            if (_r.nftToken == nftToken && _r.nftTokenId == nftTokenId) {
+                require(false, "Already rented");
+            }
+        }
+
+        userRentingsSize++;
+        rentings[userRentingsSize] = _rent;
     }
 
     /**
-     * Get rented NFTs
+     * Get user's rented NFTs
      */
-    function getRenting(address user)
-        public
-        view
-        returns (Renting[] memory rentings)
-    {
-        if (userRentings[user].exists) {
-            return userRentings[user].rentings;
+    function getRenting(address user) public view returns (Renting[] memory) {
+        Renting[] storage _rentings;
+        for (uint256 i = 0; i < rentings.length; i++) {
+            if (rentings[i].renter == user) {
+                _rentings.push(rentings[i]);
+            }
         }
-        return rentings;
+        return _rentings;
     }
 
     /**
