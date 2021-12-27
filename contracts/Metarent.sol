@@ -87,7 +87,7 @@ contract Metarent is ERC721Holder, MetarentHelper {
     /// Get user's rentable NFTs
     function getLending(address user)
         public
-        pure
+        view
         returns (Lending[] memory filteredLendings)
     {
         Lending[] memory temp = new Lending[](userLendingsSize);
