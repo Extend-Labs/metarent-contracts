@@ -17,15 +17,13 @@ contract Metarent is ERC721Holder, MetarentHelper {
         admin = _admin;
     }
 
-    // Modifier: only allow admin
+    /// Modifier: only allow admin
     modifier onlyAdmin() {
         require(msg.sender == admin, "Metarent::not admin");
         _;
     }
 
-    /**
-     * Lendable NFT info
-     */
+    /// Lendable NFT info
     struct Lending {
         address lender;
         uint256 nftToken;
@@ -35,12 +33,10 @@ contract Metarent is ERC721Holder, MetarentHelper {
         bytes4 dailyRentPrice;
         bytes4 nftPrice;
     }
-    Lending[] lendings;
-    uint256 userLendingsSize;
+    Lending[] public lendings;
+    uint256 public userLendingsSize;
 
-    /**
-     * Rented NFT info
-     */
+    /// Rented NFT info
     struct Renting {
         address renter;
         uint256 nftToken;
@@ -53,9 +49,7 @@ contract Metarent is ERC721Holder, MetarentHelper {
     Renting[] rentings;
     uint256 userRentingsSize;
 
-    /**
-     * NFT Onwer mark the NFT as rentable
-     */
+    /// NFT Onwer mark the NFT as rentable
     function setLending(
         uint256 nftToken,
         uint256 nftTokenId,
@@ -63,8 +57,6 @@ contract Metarent is ERC721Holder, MetarentHelper {
         bytes4 dailyRentPrice,
         bytes4 nftPrice
     ) public {
-        address user = msg.sender;
-
         // Init lending info
         Lending memory lending = Lending({
             lender: msg.sender,
@@ -87,37 +79,38 @@ contract Metarent is ERC721Holder, MetarentHelper {
         lendings[userLendingsSize] = lending;
     }
 
-    /**
-     * Remove lending from user lending list
-     */
+    /// Remove lending from user lending list
     function removeLending(uint256 nftToken, uint256 nftTokenId) public pure {
         require(false, "NOT Implement");
     }
 
-    /**
-     * Get user's rentable NFTs
-     */
-    function getLending(address user) public view returns (Lending[] memory) {
-        Lending[] storage _lendings;
-        for (uint256 i = 0; i < lendings.length; i++) {
+    /// Get user's rentable NFTs
+    function getLending(address user)
+        public
+        pure
+        returns (Lending[] memory filteredLendings)
+    {
+        Lending[] memory temp = new Lending[](userLendingsSize);
+        uint256 count;
+        for (uint256 i = 0; i < userLendingsSize; i++) {
             if (lendings[i].lender == user) {
-                _lendings.push(lendings[i]);
+                temp[count] = lendings[i];
+                count += 1;
             }
         }
-        return _lendings;
+        filteredLendings = new Lending[](count);
+        for (uint256 i = 0; i < count; i++) {
+            filteredLendings[i] = temp[i];
+        }
+        return filteredLendings;
     }
 
-    /**
-     * Rent NFT
-     */
+    /// Rent NFT
     function rent(
-        address user,
         uint256 nftToken,
         uint256 nftTokenId,
         uint8 rentDuration
     ) public payable {
-        bool success = false;
-
         // Find the lending
         Lending memory _lending;
         bool found = false;
@@ -128,6 +121,8 @@ contract Metarent is ERC721Holder, MetarentHelper {
             }
         }
         require(found, "Lending not available");
+
+        // TODO Check value
 
         Renting memory _rent = Renting({
             renter: msg.sender,
@@ -149,22 +144,28 @@ contract Metarent is ERC721Holder, MetarentHelper {
         rentings[userRentingsSize] = _rent;
     }
 
-    /**
-     * Get user's rented NFTs
-     */
-    function getRenting(address user) public view returns (Renting[] memory) {
-        Renting[] storage _rentings;
-        for (uint256 i = 0; i < rentings.length; i++) {
+    /// Get user's rented NFTs
+    function getRenting(address user)
+        public
+        view
+        returns (Renting[] memory filteredRentings)
+    {
+        Renting[] memory temp = new Renting[](userRentingsSize);
+        uint256 count;
+        for (uint256 i = 0; i < userRentingsSize; i++) {
             if (rentings[i].renter == user) {
-                _rentings.push(rentings[i]);
+                temp[count] = rentings[i];
+                count += 1;
             }
         }
-        return _rentings;
+        filteredRentings = new Renting[](count);
+        for (uint256 i = 0; i < count; i++) {
+            filteredRentings[i] = temp[i];
+        }
+        return filteredRentings;
     }
 
-    /**
-     * Change the feePermille
-     */
+    /// Change the feePermille
     function setPermille(uint256 _feePermille) public onlyAdmin {
         feePermille = _feePermille;
     }
