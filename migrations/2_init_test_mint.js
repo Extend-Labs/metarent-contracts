@@ -6,5 +6,5 @@ module.exports = async (deployer, network, accounts) => {
   const nft = await MetarentNFT.deployed();
   let tokenId = await nft.mintNFT(accounts[0], "http://metarent.me");
   console.log(">>>", "account", accounts[0]);
-  console.log(">>>", "tokenId", tokenId);
+  console.log(">>>", "tokenId", JSON.stringify(tokenId.logs[0].args.tokenId));
 };

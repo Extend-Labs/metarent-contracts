@@ -6,14 +6,12 @@ import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import "./lib/MetarentHelper.sol";
 
-contract Metarent is ERC721Holder, MetarentHelper {
+contract Metarent is ERC721Holder {
     address private admin;
     uint256 private feePermille; // fee in permille ‰, like 25‰, 0.025
 
     constructor(address _admin) {
-        checkZeroAddr(_admin);
         admin = _admin;
     }
 
@@ -26,37 +24,40 @@ contract Metarent is ERC721Holder, MetarentHelper {
     /// Lendable NFT info
     struct Lending {
         address lender;
-        uint256 nftToken;
+        address nftToken;
         uint256 nftTokenId;
-        uint8 maxRentDuration;
+        uint256 maxRentDuration;
+        uint256 dailyRentPrice;
+        uint256 nftPrice;
         bool rentable;
-        bytes4 dailyRentPrice;
-        bytes4 nftPrice;
     }
-    Lending[] public lendings;
-    uint256 public userLendingsSize;
+    Lending[] private lendings;
+    uint256 private userLendingsSize;
 
     /// Rented NFT info
     struct Renting {
         address renter;
-        uint256 nftToken;
+        address nftToken;
         uint256 nftTokenId;
-        bytes4 dailyRentPrice;
-        bytes4 nftPrice;
-        uint8 rentDuration;
+        uint256 dailyRentPrice;
+        uint256 nftPrice;
+        uint256 rentDuration;
         uint256 rentedAt;
     }
-    Renting[] rentings;
-    uint256 userRentingsSize;
+    Renting[] private rentings;
+    uint256 private userRentingsSize;
 
     /// NFT Onwer mark the NFT as rentable
     function setLending(
-        uint256 nftToken,
+        address nftToken,
         uint256 nftTokenId,
-        uint8 maxRentDuration,
-        bytes4 dailyRentPrice,
-        bytes4 nftPrice
-    ) public {
+        uint256 maxRentDuration,
+        uint256 dailyRentPrice,
+        uint256 nftPrice
+    ) external payable {
+        // Send eth amount
+        // TODO
+
         // Init lending info
         Lending memory lending = Lending({
             lender: msg.sender,
@@ -75,17 +76,20 @@ contract Metarent is ERC721Holder, MetarentHelper {
                 require(false, "Already lended");
             }
         }
-        userLendingsSize++;
-        lendings[userLendingsSize] = lending;
+        userLendingsSize += 1;
+        lendings.push(lending);
+        // lendings[userLendingsSize - 1] = lending;
     }
 
     /// Remove lending from user lending list
-    function removeLending(uint256 nftToken, uint256 nftTokenId) public pure {
+    function removeLending(address nftToken, uint256 nftTokenId) public pure {
         require(false, "NOT Implement");
+        nftToken;
+        nftTokenId;
     }
 
     /// Get user's rentable NFTs
-    function getLending(address user)
+    function getLending()
         public
         view
         returns (Lending[] memory filteredLendings)
@@ -93,7 +97,7 @@ contract Metarent is ERC721Holder, MetarentHelper {
         Lending[] memory temp = new Lending[](userLendingsSize);
         uint256 count;
         for (uint256 i = 0; i < userLendingsSize; i++) {
-            if (lendings[i].lender == user) {
+            if (lendings[i].rentable == true) {
                 temp[count] = lendings[i];
                 count += 1;
             }
@@ -107,9 +111,9 @@ contract Metarent is ERC721Holder, MetarentHelper {
 
     /// Rent NFT
     function rent(
-        uint256 nftToken,
+        address nftToken,
         uint256 nftTokenId,
-        uint8 rentDuration
+        uint256 rentDuration
     ) public payable {
         // Find the lending
         Lending memory _lending;
@@ -140,8 +144,8 @@ contract Metarent is ERC721Holder, MetarentHelper {
             }
         }
 
-        userRentingsSize++;
-        rentings[userRentingsSize] = _rent;
+        userRentingsSize += 1;
+        rentings[userRentingsSize - 1] = _rent;
     }
 
     /// Get user's rented NFTs
@@ -168,5 +172,9 @@ contract Metarent is ERC721Holder, MetarentHelper {
     /// Change the feePermille
     function setPermille(uint256 _feePermille) public onlyAdmin {
         feePermille = _feePermille;
+    }
+
+    function getBalance() public view returns (uint256) {
+        return address(this).balance;
     }
 }
