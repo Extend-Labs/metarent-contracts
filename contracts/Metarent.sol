@@ -2,6 +2,7 @@
 pragma solidity ^0.8.11;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
@@ -55,8 +56,8 @@ contract Metarent is ERC721Holder {
         uint256 dailyRentPrice,
         uint256 nftPrice
     ) external payable {
-        // Send eth amount
-        // TODO
+        // TODO: check NFT approve
+        // TODO: check msg.sender == NFT.owner
 
         // Init lending info
         Lending memory lending = Lending({
@@ -78,7 +79,6 @@ contract Metarent is ERC721Holder {
         }
         userLendingsSize += 1;
         lendings.push(lending);
-        // lendings[userLendingsSize - 1] = lending;
     }
 
     /// Remove lending from user lending list
@@ -122,6 +122,7 @@ contract Metarent is ERC721Holder {
             Lending storage _lend = lendings[i];
             if (_lend.nftToken == nftToken && _lend.nftTokenId == nftTokenId) {
                 _lending = _lend;
+                found = true;
             }
         }
         require(found, "Lending not available");
@@ -145,7 +146,11 @@ contract Metarent is ERC721Holder {
         }
 
         userRentingsSize += 1;
-        rentings[userRentingsSize - 1] = _rent;
+        rentings.push(_rent);
+
+        // Transfer the NFT from lender to renter
+        IERC721 nftContract = IERC721(nftToken);
+        nftContract.transferFrom(_lending.lender, msg.sender, nftTokenId);
     }
 
     /// Get user's rented NFTs
@@ -167,6 +172,10 @@ contract Metarent is ERC721Holder {
             filteredRentings[i] = temp[i];
         }
         return filteredRentings;
+    }
+
+    function returnRent() public {
+        // payable(seller).transfer(msg.value); // send the ETH to the seller
     }
 
     /// Change the feePermille
