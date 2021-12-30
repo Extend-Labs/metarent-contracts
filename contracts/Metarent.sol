@@ -38,12 +38,14 @@ contract Metarent is ERC721Holder {
     /// Rented NFT info
     struct Renting {
         address renter;
+        address lender;
         address nftToken;
         uint256 nftTokenId;
         uint256 dailyRentPrice;
         uint256 nftPrice;
         uint256 rentDuration;
         uint256 rentedAt;
+        bool isReturned;
     }
     Renting[] private rentings;
     uint256 private userRentingsSize;
@@ -123,20 +125,26 @@ contract Metarent is ERC721Holder {
             if (_lend.nftToken == nftToken && _lend.nftTokenId == nftTokenId) {
                 _lending = _lend;
                 found = true;
+
+                // Check lending rentable and mark it as non-renable
+                require(_lend.rentable, "Lending not avaliable");
+                _lend.rentable = false;
             }
         }
         require(found, "Lending not available");
 
-        // TODO Check value
+        // TODO Check eth value
 
         Renting memory _rent = Renting({
             renter: msg.sender,
+            lender: _lending.lender,
             nftToken: nftToken,
             nftTokenId: nftTokenId,
             dailyRentPrice: _lending.dailyRentPrice,
             nftPrice: _lending.nftPrice,
             rentDuration: rentDuration,
-            rentedAt: block.timestamp
+            rentedAt: block.timestamp,
+            isReturned: false
         });
         for (uint256 i = 0; i < rentings.length; i++) {
             Renting memory _r = rentings[i];
@@ -174,8 +182,42 @@ contract Metarent is ERC721Holder {
         return filteredRentings;
     }
 
-    function returnRent() public {
-        // payable(seller).transfer(msg.value); // send the ETH to the seller
+    function returnRent(address nftToken, uint256 nftTokenId) public {
+        // TODO: check NFT approve
+        // TODO: check msg.sender == NFT.owner
+
+        // 0. Checking
+        Renting memory _renting;
+        bool found = false;
+        for (uint256 i = 0; i < rentings.length; i++) {
+            Renting storage _rent = rentings[i];
+            if (_rent.nftToken == nftToken && _rent.nftTokenId == nftTokenId) {
+                _renting = _rent;
+                found = true;
+                require(
+                    _rent.isReturned == false,
+                    "This renting has been returned."
+                );
+                _rent.isReturned = true; // Mark it as un-rentable
+            }
+        }
+        require(found, "Renting not available");
+
+        // 1. Transfer the NFT from lender to renter
+        IERC721 nftContract = IERC721(nftToken);
+        nftContract.transferFrom(
+            msg.sender,
+            _renting.renter,
+            _renting.nftTokenId
+        );
+
+        // 2. Return the collateral to renter
+        payable(msg.sender).transfer(_renting.nftPrice);
+
+        // 3. Pay renting price to lender
+        payable(msg.sender).transfer(
+            _renting.dailyRentPrice * _renting.rentDuration
+        );
     }
 
     /// Change the feePermille
